@@ -1,0 +1,63 @@
+{
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "SFAPI",
+    "version" : "2024-01-15T10:30:52Z"
+  },
+  "paths" : {
+    "/add" : {
+      "post" : {
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestModel"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResponseModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "RequestModel" : {
+        "required" : [ "x", "y" ],
+        "type" : "object",
+        "properties" : {
+          "x" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "y" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "ResponseModel" : {
+        "required" : [ "sum" ],
+        "type" : "object",
+        "properties" : {
+          "sum" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      }
+    }
+  }
+}

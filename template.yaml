@@ -1,0 +1,552 @@
+## Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+## SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  APIStageName:
+    Type: String
+    Default: Test
+    AllowedPattern: ^[\w-]+
+    MaxLength: 128
+    Description: The name of the stage is the first path segment in the Uniform Resource Identifier (URI) of a call to API Gateway.
+    ConstraintDescription: Stage names can only contain alphanumeric characters, hyphens, and underscores. Maximum length is 128 characters
+
+  SFUserName:
+    Type: String
+    Default: SFUser
+
+  IncludeTestEnv:
+    Type: String
+    Description: Should the deployment include in the test function etc (true, false)
+    AllowedValues:
+      - true
+      - false
+    Default: false
+
+  SFVPCEndPoint:
+    Type: String
+    Default: ''
+    Description: |
+      If connecting from SalesForce once you've created your Private Connect Outbound Connection
+      please pass the corresponding VPC EndPoint Id here (vpce-0x0xxxxx000000xxx)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures:
+      - arm64
+    LoggingConfig:
+      ApplicationLogLevel: INFO
+      SystemLogLevel: INFO
+      LogFormat: JSON
+
+Conditions:
+  IncludeTestEnvCondition: !Equals
+    - !Ref 'IncludeTestEnv'
+    - true
+
+  SFVPCEndPointCondition: !Not
+    - !Equals
+      - !Ref 'SFVPCEndPoint'
+      - ''
+
+  NoEndPointAccess: !Not
+    - !Or
+      - !Condition 'IncludeTestEnvCondition'
+      - !Condition 'SFVPCEndPointCondition'
+
+Resources:
+  SFUser:
+    Type: AWS::IAM::User
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F2000
+            reason: No value in the user being part of a group in this instance
+      UserName: !Sub '${AWS::StackName}-${SFUserName}'
+
+  SFUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref 'SFUser'
+
+  SFUserSecretKeyKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'KMS Key for the secret ${AWS::StackName}-${SFUserName}'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Allow access for Key Administrators
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - kms:*
+            Resource: '*'
+
+  SFUserSecretKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub 'Secret Key for the user ${AWS::StackName}-${SFUserName}'
+      SecretString: !Sub '${SFUserAccessKey.SecretAccessKey}'
+      KmsKeyId: !Ref 'SFUserSecretKeyKMSKey'
+
+  SFRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub '${SFUser.Arn}'
+            Action: sts:AssumeRole
+
+  InvokeAPIIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: InvokeAPIIAMPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: execute-api:Invoke
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateAPI}/${APIStageName}/POST/add'
+          - Effect: Allow
+            Action: apigateway:POST
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/restapis/${PrivateAPI}*'
+      Roles:
+        - !Ref 'SFRole'
+        - !If
+          - IncludeTestEnvCondition
+          - !Ref 'VPCEndPointTestFunctionRole'
+          - !Ref 'AWS::NoValue'
+
+  PrivateAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-PrivateAPI'
+      AlwaysDeploy: true
+      StageName: !Ref 'APIStageName'
+      OpenApiVersion: 3.0.1
+      TracingEnabled: true
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+        ResourcePolicy:
+          CustomStatements:
+            - !If
+              - IncludeTestEnvCondition
+              - Effect: Deny
+                Principal: '*'
+                Action: execute-api:Invoke
+                Resource: !Sub 'execute-api:/${APIStageName}/POST/'
+                Condition:
+                  StringNotEquals:
+                    aws:SourceVpce: !Ref 'PrivateAPIEndPoint'
+              - !Ref 'AWS::NoValue'
+            - !If
+              - SFVPCEndPointCondition
+              - Effect: Deny
+                Principal: '*'
+                Action: execute-api:Invoke
+                Resource: !Sub 'execute-api:/${APIStageName}/POST/'
+                Condition:
+                  StringNotEquals:
+                    aws:SourceVpce: !Ref 'SFVPCEndPoint'
+              - !Ref 'AWS::NoValue'
+            - !If
+              - NoEndPointAccess
+              - Effect: Deny
+                Principal: '*'
+                Action: execute-api:Invoke
+                Resource: !Sub 'execute-api:/${APIStageName}/POST/'
+              - !Ref 'AWS::NoValue'
+            - Effect: Allow
+              Principal: '*'
+              Action: execute-api:Invoke
+              Resource: execute-api:/*
+      EndpointConfiguration:
+        Type: PRIVATE
+        VPCEndpointIds:
+          - !If
+            - IncludeTestEnvCondition
+            - !Ref 'PrivateAPIEndPoint'
+            - !Ref 'AWS::NoValue'
+          - !If
+            - SFVPCEndPointCondition
+            - !Ref 'SFVPCEndPoint'
+            - !Ref 'AWS::NoValue'
+      MethodSettings:
+        - HttpMethod: '*'
+          ResourcePath: /*
+          MetricsEnabled: true
+          DataTraceEnabled: true
+      DefinitionBody:
+        openapi: 3.0.1
+        paths:
+          /add:
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/RequestModel'
+              responses:
+                '200':
+                  description: 200 Response
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/ResponseModel'
+              x-amazon-apigateway-integration:
+                type: AWS_PROXY
+                httpMethod: POST
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AddFunction.Arn}/invocations'
+                credentials: !Sub '${AddFunctionExecutionRole.Arn}'
+              x-amazon-apigateway-request-validator: body-only
+        components:
+          schemas:
+            RequestModel:
+              required:
+                - x
+                - y
+              type: object
+              properties:
+                x:
+                  type: integer
+                y:
+                  type: integer
+            ResponseModel:
+              type: object
+              properties:
+                sum:
+                  type: integer
+              required:
+                - sum
+        securitySchemes:
+          sigv4:
+            type: apiKey
+            name: Authorization
+            in: header
+            x-amazon-apigateway-authtype: awsSigv4
+        x-amazon-apigateway-request-validators:
+          body-only:
+            validateRequestBody: true
+            validateRequestParameters: false
+
+  AddFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: AddFunctionExecutionRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub '${AddFunction.Arn}'
+
+  AddFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: Function is not accessing any resources in a VPC
+    Properties:
+      InlineCode: |
+        '''
+        Lambda function to add two numbers.
+        '''
+
+        ## Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+        ## SPDX-License-Identifier: MIT-0
+
+        import json
+        import logging
+
+        logger = logging.getLogger()
+
+        def lambda_handler(event, context):
+            '''
+            Lambda handler function to add two numbers.
+            Parameters:
+                event (dict): Event payload containing x and y elements to be added
+                context (dict): Lambda context object. Not used in this example. 
+
+            Returns:
+                dict: Response payload of the added numbers
+            '''
+
+            logger.info(json.dumps(event))
+
+            body = json.loads(event['body'])
+            x = body['x']
+            y = body['y']
+
+            total = x + y
+
+            response = {
+                        "statusCode": 200,
+                        "body": json.dumps({"sum": total})
+            }
+
+            logger.info(json.dumps(response))
+
+            return response
+
+      Handler: index.lambda_handler
+      LoggingConfig:
+        LogGroup: !Sub '${AddFunctionLogGroup}'
+      ReservedConcurrentExecutions: 2
+
+  LambdaFunctionLogGroupKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'KMS Key for the Lambda function log groups'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Allow access for Key Administrators
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - kms:*
+            Resource: '*'
+          - Sid: Allow access for CloudWatch logs
+            Effect: Allow
+            Principal:
+              Service: !Sub 'logs.${AWS::Region}.amazonaws.com'
+            Action:
+              - kms:Encrypt*
+              - kms:Decrypt*
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:Describe*
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                kms:EncryptionContext:aws:logs:arn:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-AddFunctionLogGroup'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-VPCEndPointTestFunctionLogGroup'
+
+  AddFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-AddFunctionLogGroup'
+      RetentionInDays: 1
+      KmsKeyId: !Sub '${LambdaFunctionLogGroupKMSKey.Arn}'
+
+  LambdaVpc:
+    Type: AWS::CloudFormation::Stack
+    Condition: IncludeTestEnvCondition
+    Properties:
+      TemplateURL: https://aws-quickstart.s3.amazonaws.com/quickstart-aws-vpc/templates/aws-vpc.template.yaml
+      TimeoutInMinutes: 60
+      Parameters:
+        AvailabilityZones: !Sub '${AWS::Region}a,${AWS::Region}b'
+        NumberOfAZs: 2
+        CreateNATGateways: false
+        VPCCIDR: 192.168.0.0/16
+        CreatePublicSubnets: false
+        PrivateSubnet1ACIDR: 192.168.50.0/24
+        PrivateSubnet2ACIDR: 192.168.51.0/24
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: IncludeTestEnvCondition
+    Properties:
+      GroupDescription: Allow outbound access to the APIG
+      VpcId: !Sub '${LambdaVpc.Outputs.VPCID}'
+
+  LambdaSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: IncludeTestEnvCondition
+    Properties:
+      GroupId: !Ref 'LambdaSecurityGroup'
+      Description: Allow outbound access to the API Gateway interface endpoint
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      DestinationSecurityGroupId: !Ref 'EndPointSecurityGroup'
+
+  EndPointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: IncludeTestEnvCondition
+    Properties:
+      GroupDescription: Security Group for APIG Interface Endpoint
+      VpcId: !Sub '${LambdaVpc.Outputs.VPCID}'
+      SecurityGroupIngress:
+        - Description: Allow access from the Lambda test_function
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref 'LambdaSecurityGroup'
+      SecurityGroupEgress:
+        - Description: Allow outbound access to the API Gateway
+          IpProtocol: -1
+          CidrIp: 127.0.0.1/32
+
+  PrivateAPIEndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: IncludeTestEnvCondition
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref 'EndPointSecurityGroup'
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.execute-api'
+      SubnetIds:
+        - !Sub '${LambdaVpc.Outputs.PrivateSubnet1AID}'
+        - !Sub '${LambdaVpc.Outputs.PrivateSubnet2AID}'
+      VpcEndpointType: Interface
+      VpcId: !Sub '${LambdaVpc.Outputs.VPCID}'
+
+  Arm64RequestsLayer:
+    Type: AWS::Serverless::Application
+    Condition: IncludeTestEnvCondition
+    Properties:
+      Location:
+        ApplicationId: arn:aws:serverlessrepo:eu-west-1:345785723431:applications/python3-12-arm64-layer-builder
+        SemanticVersion: 1.0.7
+      Parameters:
+        LayerName: !Sub '${AWS::StackName}-Arm64RequestsLayer'
+        LayerPackages: aws-requests-auth requests
+
+  VPCEndPointTestFunctionRole:
+    Type: AWS::IAM::Role
+    Condition: IncludeTestEnvCondition
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole'
+
+  VPCEndPointTestFunction:
+    Type: AWS::Serverless::Function
+    Condition: IncludeTestEnvCondition
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: Permissions to write to CloudWatch Logs are provided by the VPC access execution role
+          - id: W89
+            reason: Function is deployed in a VPC
+    Properties:
+      InlineCode: |
+        '''
+        Lambda function to test invoking the add path on a private API Gateway
+        '''
+
+        ## Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+        ## SPDX-License-Identifier: MIT-0
+
+        import json
+        import os
+        import logging
+        import requests
+        from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
+
+        logger = logging.getLogger()
+
+        APIG_ID = os.environ['APIG_ID']
+        AWS_REGION = os.environ['AWS_REGION']
+        API_STAGE_NAME = os.environ['API_STAGE_NAME']
+
+        def lambda_handler(event, context):
+            '''
+            Lambda handler function to test invoking the add path on a private API Gateway
+            Parameters:
+                event (dict): Event payload containing x and y elements to be added
+                context (dict): Lambda context object. Not used in this example. 
+
+            Returns:
+                dict: Response payload of the added numbers
+            '''
+            logger.info('REQUEST RECEIVED:\n %s', json.dumps(event))
+
+            url = f'https://{APIG_ID}.execute-api.{AWS_REGION}.amazonaws.com/{API_STAGE_NAME}/add'
+            data = event
+            headers = {'x-apigw-api-id' : APIG_ID}
+            auth = BotoAWSRequestsAuth(
+                aws_host=f'{APIG_ID}.execute-api.{AWS_REGION}.amazonaws.com',
+                aws_region=AWS_REGION,
+                aws_service="execute-api"
+            )
+            timeout = 5
+            response = requests.post(url, headers=headers, auth=auth, json=data, timeout=timeout)
+
+            logger.info(json.dumps(response.json()))
+
+            return {"statusCode": response.status_code,
+                    "body": json.dumps(response.json())}
+
+      Handler: index.lambda_handler
+      LoggingConfig:
+        LogGroup: !Sub '${VPCEndPointTestFunctionLogGroup}'
+      ReservedConcurrentExecutions: 2
+      Layers:
+        - !Sub '${Arm64RequestsLayer.Outputs.LayerVersionArn}'
+      Environment:
+        Variables:
+          APIG_ID: !Ref 'PrivateAPI'
+          API_STAGE_NAME: !Ref 'APIStageName'
+      VpcConfig:
+        SecurityGroupIds:
+          - !Sub '${LambdaSecurityGroup.GroupId}'
+        SubnetIds:
+          - !Sub '${LambdaVpc.Outputs.PrivateSubnet1AID}'
+          - !Sub '${LambdaVpc.Outputs.PrivateSubnet2AID}'
+      Role: !Sub '${VPCEndPointTestFunctionRole.Arn}'
+
+  VPCEndPointTestFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: IncludeTestEnvCondition
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-VPCEndPointTestFunctionLogGroup'
+      RetentionInDays: 1
+      KmsKeyId: !Sub '${LambdaFunctionLogGroupKMSKey.Arn}'
+
+Outputs:
+  SFUserAccessKey:
+    Description: Access Key for the Salesforce User
+    Value: !Ref 'SFUserAccessKey'
+
+  SFRoleArn:
+    Description: ARN for the role that will be assumed
+    Value: !Sub '${SFRole.Arn}'
+
+  SFUserSecretKeySecretArn:
+    Description: Secrets Manager ARN for the Secret Key for the Salesforce User
+    Value: !Ref 'SFUserSecretKeySecret'
+
+  PrivateAPIUrl:
+    Description: URL for Private API
+    Value: !Sub 'https://${PrivateAPI}.execute-api.${AWS::Region}.amazonaws.com/${APIStageName}'

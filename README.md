@@ -1,17 +1,14 @@
-## My Project
+# SalesForce APIG Integration
 
-TODO: Fill this README out!
+This solution demonstrates how to implement a secure private integration between Salesforce and a private [Amazon API Gateway](https://aws.amazon.com/api-gateway/) using [AWS PrivateLink](https://aws.amazon.com/privatelink/) technology to support a synchronous user experience while meeting security and performance requirements. The integration can be leveraged in a Salesforce Flow.
 
-Be sure to:
+## AWS Blog post
+The AWS blog post explaining how this solution works, and how to deploy the Amazon CloudFormation templates.
 
-* Change the title in this README
-* Edit your repository description on GitHub
+**NEED TO UPDATE** https://aws.amazon.com/blogs/
 
-## Security
+## Amazon CloudFormation templates
+This repository provides the following Amazon CloudFormation template used to provision the demo environment:
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## License
-
-This library is licensed under the MIT-0 License. See the LICENSE file.
-
+- `template.yaml`
+  - Provisions a stack housing the AWS Services required to demonstrate and test the integration with Salesforce. This can be used standalone to test the solution.
