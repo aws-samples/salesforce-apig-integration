@@ -29,7 +29,7 @@ Parameters:
     Type: String
     Default: ''
     Description: |
-      If connecting from SalesForce once you've created your Private Connect Outbound Connection
+      If connecting from Salesforce once you've created your Private Connect Outbound Connection
       please pass the corresponding VPC EndPoint Id here (vpce-0x0xxxxx000000xxx)
 
 Globals:

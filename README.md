@@ -1,4 +1,4 @@
-# SalesForce APIG Integration
+# Salesforce APIG Integration
 
 This solution demonstrates how to implement a secure private integration between Salesforce and a private [Amazon API Gateway](https://aws.amazon.com/api-gateway/) using [AWS PrivateLink](https://aws.amazon.com/privatelink/) technology to support a synchronous user experience while meeting security and performance requirements. The integration can be leveraged in a Salesforce Flow.
 
