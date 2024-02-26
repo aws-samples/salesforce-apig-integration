@@ -1,0 +1,6 @@
+.aws-sam
+/*.param
+.venv
+.DS_Store
+.tmp
+.vscode
