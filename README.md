@@ -14,7 +14,7 @@ By using these features, critical data can flow from the Salesforce environment 
 ![Private Integration between Salesforce and Amazon API Gateway
 Solution Diagram](img/10-SolutionOverview.png)
 
-Figure 1 - Solution Overview
+*Figure 1 - Solution Overview*
 
 ## Solution walkthrough
 1. Salesforce External Services allows you to upload an OpenAPI specification exported from the API Gateway to automatically generate invocable actions that can be used in Flow Builder to make callouts to the API Gateway.
@@ -55,13 +55,13 @@ To create your Outbound Connection, you first need to setup Private Connect whic
 
 ![Salesforce Private Connect Setup Screenshot](img/20-PrivateConnect.png)
 
-Figure 2 - Salesforce Private Connect Setup
+*Figure 2 - Salesforce Private Connect Setup*
 
 Once you have setup Private Connect and its status turns to “Ready” state, you need to copy the VPC Endpoint Id. This will be used a parameter to the CloudFormation template to configure the resource policy associated with API Gateway to only allow traffic from this VPC endpoint.
 
 ![Salesforce VPC Endpoint Id Screenshot](img/30-SalesforceVPCEndpointId.png)
 
-Figure 3 - Salesforce VPC Endpoint Id
+*Figure 3 - Salesforce VPC Endpoint Id*
 
 In this example you are using a private API which has to be accessed via an interface VPC endpoint.  If connecting to a public API, an Outbound Connection would not be required since the public API is available over the internet.  
 
@@ -81,7 +81,7 @@ Once the **Create stack** page is displayed the Amazon S3 URL will be populated 
 
 ![CloudFormation Parameters Screenshot](img/40-CFNParameters.png)
 
-Figure 4 - CloudFormation Parameters
+*Figure 4 - CloudFormation Parameters*
 
 - Click **Next** on the **Configure stack options** page.
 - Review the details on the next page and select the three options:
@@ -94,7 +94,7 @@ Once the stack has been deployed (approximately 3-5 minutes depending if you are
 
 ![CloudFormation Outputs Sccreenshot](img/50-CFNOutputs.png)
 
-Figure 5 - CloudFormation Outputs
+*Figure 5 - CloudFormation Outputs*
 
 ### Test in AWS without Salesforce (Optional)
 
@@ -127,19 +127,19 @@ In a production environment, [AWS IAM Roles Anywhere](https://docs.aws.amazon.co
 
 ![Salesforce External Credential Screenshot](img/60-SaleforceExternalCredential.png)
 
-Figure 6 - Salesforce External Credential
+*Figure 6 - Salesforce External Credential*
 
 Once you have created the External Credential, you need to create a Principal under the Principals section of the External Credential. For the IAM Role ARN, use the **SFRoleArn** from the stack outputs. Ensure that permission sets or profiles associated with the user who will be calling the API have enabled principal access. For more information on how to enable External Credential principals, check the [documentation](https://help.salesforce.com/s/articleView?id=sf.nc_enable_ext_cred_principal.htm&type=5).
 
 ![Configuring Principals for External Credential Screenshot](img/70-ConfigurePrincipalsExternalCredential.png)
 
-Figure 7 - Configuring Principals for External Credential
+*Figure 7 - Configuring Principals for External Credential*
 
 Next you need to configure a Named Credential which specifies the URL of a callout endpoint which can be found from the CloudFormation stack outputs in our example. You also need to select the External Credential and outbound network connection previously created. Use this [guide](https://developer.salesforce.com/docs/atlas.en-us.apexcode.meta/apexcode/apex_callouts_named_credentials.htm) as a reference if you need additional help in configuring Named Credentials. 
 
 ![Salesforce Named Credential Screenshot](img/80-SalesforceNamedCredentail.png)
 
-Figure 8 - Salesforce Named Credential
+*Figure 8 - Salesforce Named Credential*
 
 If accessing a public API the same approach of using Named Credentials and External Credentials can used for authenticating requests.
 
@@ -152,19 +152,19 @@ To create an External Service, you need to find External Services in your Salesf
 
 ![External Service from API Specification Screenshot](img/90-ExternalServiceFromAPISpecification.png)
 
-Figure 9 - External Service from API Specification
+*Figure 9 - External Service from API Specification*
 
 Enter the name **SFAPI** as the name for your service, select the Named Credential you created earlier and copy-paste the content of the [API definition file](OpenAPIDef.json) that was downloaded when you cloned the repository.
 
 ![External Service Configuration Screenshot](img/100-ExternalServiceConfiguration.png)
 
-Figure 10 - External Service Configuration
+*Figure 10 - External Service Configuration*
 
 The OpenAPI definition can be exported from the stage of the API Gateway. The options shown below should be selected if you plan to upload the export to External Services.
 
 ![API Export from API Gateway Screenshot](img/110-APIExportFromAPIGateway.png)
 
-Figure 11 - API Export from API Gateway
+*Figure 11 - API Export from API Gateway*
 
 The **‘servers’** element should be removed from the exported file as the information contained is stored in the Named Credential within Salesforce.
 
@@ -175,49 +175,49 @@ Choose the type of Flow you want to build and press **Create**. In this case, we
 
 ![New Flow Configuration Screen Screenshot](img/120-NewFlowConfigurationScreen.png)
 
-Figure 12 - New Flow Configuration Screen
+*Figure 12 - New Flow Configuration Screen*
 
 Screen Flows provide the user with a screen for input. Click on the connection circle after the Screen Flow Start element to add a Screen element.
 
 ![Add Input Screen Element to Flow Screenshot](img/130-AddInputScreenElementToFlow.png)
 
-Figure 13 - Add Input Screen Element to Flow
+*Figure 13 - Add Input Screen Element to Flow*
 
 Enter **Input Screen** as the label for the screen element and **Input_Screen** as the API Name.
 
 ![Enter Screen Properties for Input Screen Screenshot](img/140-EnterScreenPropertiesForInputScreen.png)
 
-Figure 14 - Enter Screen Properties for Input Screen
+*Figure 14 - Enter Screen Properties for Input Screen*
 
 Next, go to the Components pane and search for the **Number** component. Drag two of these inputs into the screen. Label one **x** and the other **y**. Since these are both required inputs, select the **Require** checkbox. When finished, click **Done**. 
 
 ![Add Components to Input Screen Screenshot](img/150-Add%20ComponentsToInputScreen.png)
 
-Figure 15 - Add Components to Input Screen
+*Figure 15 - Add Components to Input Screen*
 
 The Assignment element in Flow lets you set values in variables. Click on the connection circle after the screen element and search for the **Assignment** element. Enter **assignInputs** as the label and API name for the element. In the Set Variable Values section, click into the Search variables search box and select **New Resource**. We are going to create a variable for the request body.
 
 ![Create New Resource Screenshot](img/160-CreateNewResource.png)
 
-Figure 16 - Create New Resource
+*Figure 16 - Create New Resource*
 
 Select **Variable** for the Resource Type and enter **requestBody** for the API Name. Then select **Apex-Defined** for the Data Type. Once this is selected, the Apex Class search box will appear. Type in the name of your External Service (**SFAPI**) and select the Apex class (**ExternalService_SFAPI_RequestModel**). Click **Done** when finished.
 
 ![Create Request Body Variable Screenshot](img/170-CreateRequestBodyVariable.png)
 
-Figure 17 - Create Request Body Variable
+*Figure 17 - Create Request Body Variable*
 
 Assign values to the x and y parameters of the newly created requestBody variable. Click into the Search variables search box and select **requestBody**, and then select **x** from the expanded menu. Click into the associated Value search box to the right and select **x** under the Screen Components section. Click A**dd Assignment** below to repeat the steps for **y**. Click **Done** when finished.
 
 ![Assign Values to the Request Body Variable Screenshot](img/180-AssignValuesToTheRequestBodyVariable.png)
 
-Figure 18 - Assign Values to the Request Body Variable
+*Figure 18 - Assign Values to the Request Body Variable*
 
 Click on the connection circle after the Assignment element and search for the **Action** element. In the action search box, type in the name of your External Service (SFAPI) to get a list of the invocable actions generated by it. Select the invocable action **postAdd (externalService-SFAPI.postAdd)**. Enter **postAdd** for the label and API Name. In the body search box under the Set Input Values for the Selected Action section, select your newly assigned **requestBody** variable. Click **Done** when finished.
 
 ![Add New Invocable Action to Flow Screenshot](img/190-AddNewInvocableActionToFlow.png)
 
-Figure 19 - Add New Invocable Action to Flow
+*Figure 19 - Add New Invocable Action to Flow*
 
 To view the output of the External Service callout, add another **Screen** element to the flow after the Action element. Enter **Output Screen** as the label for the screen element and **Output_Screen** as the API Name. Then go to the Components pane and search for the **Display Text** component. Drag it onto the screen. Enter **total** for the API Name.
 
@@ -225,18 +225,18 @@ Click into the Resource Picker search box on the right and select **Outputs from
 
 ![Add Output Screen to Flow Screenshot](img/200-AddOutputScreenToFlow.png)
 
-Figure 20 - Add Output Screen to Flow
+*Figure 20 - Add Output Screen to Flow*
 
 Save the Flow by clicking **Save** on the top right. Enter **SFAPI Flow** for the label and **SFAPI_Flow** for the API Name. Then hit **Save**.
 
 ![Save Flow Screenshot](img/210-SaveFlow.png)
 
-Figure 21 - Save Flow
+*Figure 21 - Save Flow*
 
 To test the Flow, select **Debug** at the top. Enter a value for **x** and **y** and press **Next**. Flow Builder will proceed to display the output on the left side and debug details on the right side.
 
 ![Test the Flow Screenshot](img/220-TestTheFlow.png)
 
-Figure 22 - Test the Flow
+*Figure 22 - Test the Flow*
 
 During this walkthrough you were able to rapidly setup Salesforce Private Connect, create an invocable action and build a Flow without writing any code.  The Flow was able to call the AWS API Gateway. With this solution, customers can build applications that require synchronous responses to business integration logic hosted in AWS. Customers benefit from higher performance since the traffic is routed over the AWS backbone rather than the public internet.
