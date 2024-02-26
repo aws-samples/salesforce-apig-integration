@@ -6,7 +6,7 @@ This solution demonstrates how to implement a secure private integration between
 The AWS blog post providing further business context around the solution can be found at https://aws.amazon.com/blogs/ #TODO
 
 ## Architecture Overview
-The architecture below shows how the Salesforce features [Salesforce Private Connect](https://developer.salesforce.com/blogs/2020/05/introducing-salesforce-private-connect), [Named Credentials](https://help.salesforce.com/s/articleView?id=sf.nc_named_creds_and_ext_creds.htm), and External Services are leveraged to simplify the setup of a secure, private, authenticated connection between your Salesforce and AWS environments.  Salesforce Private Connect provides a secure private connection with AWS using AWS PrivateLink. Named Credentials 
+The architecture below shows how the Salesforce features [Salesforce Private Connect](https://developer.salesforce.com/blogs/2020/05/introducing-salesforce-private-connect), [Named Credentials](https://help.salesforce.com/s/articleView?id=sf.nc_named_creds_and_ext_creds.htm), and [External Services](https://help.salesforce.com/s/articleView?id=sf.external_services.htm) are leveraged to simplify the setup of a secure, private, authenticated connection between your Salesforce and AWS environments.  Salesforce Private Connect provides a secure private connection with AWS using AWS PrivateLink. Named Credentials 
 allows authentication tokens for external services to be stored in the Salesforce organisation’s encrypted credential store. 
 
 By using these features, critical data can flow from the Salesforce environment to AWS without using the public internet. The traffic will be routed from the Salesforce managed VPC through an API Gateway VPC Endpoint before being routed to the private API in the customer account.  
@@ -32,7 +32,7 @@ The cost of running the walkthrough will be minimal, as it based on serverless t
 - [AWS Key Management Service](https://aws.amazon.com/kms/pricing/) (KMS) - $1/month per key (prorated hourly).  Two KMS keys are created by the AWS CloudFormation template, one to encrypt the AWS Secrets Manager Secret and one to protect the Lambda Function [Amazon CloudWatch](https://aws.amazon.com/cloudwatch/) Log Groups.
 
 ### Prerequisites
-To follow along with this walkthrough, you must make sure that your AWS Identity and Access Management (IAM) user or role includes permissions to create the resources required as part of the solution, these include:
+To follow along with this walkthrough, you must make sure that your [AWS Identity and Access Management](http://aws.amazon.com/iam) (IAM) user or role includes permissions to create the resources required as part of the solution, these include:
 - Lambda Functions and Layers
 - API Gateway REST APIs
 - Secrets Manager Secrets
@@ -48,10 +48,10 @@ To follow along with this walkthrough, you must make sure that your AWS Identity
 To create your Outbound Connection, you first need to setup Private Connect which enables private API callouts from Salesforce to a service running in AWS to send or retrieve data. This can be done in a few clicks by creating an **Outbound Connection** where you specify the **AWS VPC Service Endpoint Name** and the **Region**. These should be set to:
 
 | Salesforce Field          | CloudFormation stack output |
-| ------------------------- | --------------------------- |
-| Connection Name	          | \<A name that you define>  |
-| VPC Endpoint Service Name | com.amazonaws.\<aws-region>.execute-api |
-| Region                    | The region you will deploy the CloudFormation template. This should be one of the supported regions for Salesforce Private Connect |
+| :---                      | :--- |
+| Connection Name	          | *\<A name that you define>*  |
+| VPC Endpoint Service Name | com.amazonaws.*\<aws-region>*.execute-api |
+| Region                    | The region you will deploy the CloudFormation template. This should be one of the supported regions for [Salesforce Private Connect](https://help.salesforce.com/s/articleView?id=sf.private_connect_considerations.htm) |
 
 ![Salesforce Private Connect Setup Screenshot](img/20-PrivateConnect.png)
 
@@ -63,15 +63,15 @@ Once you have setup Private Connect and its status turns to “Ready” state, y
 
 *Figure 3 - Salesforce VPC Endpoint Id*
 
-In this example you are using a private API which has to be accessed via an interface VPC endpoint.  If connecting to a public API, an Outbound Connection would not be required since the public API is available over the internet.  
+In this example you are using a private API which has to be accessed via an [interface VPC endpoint](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-private-apis.html).  If connecting to a public API, an Outbound Connection would not be required since the public API is available over the internet.  
 
 ### Setup AWS
 To create your resources, complete the following steps:
-- Clone this repository to your local environment
+- Clone this repository or download the [template](https://github.com/aws-samples/salesforce-apig-integration/blob/main/template.yaml) to your local environment using the `...` button in GitHub
 - Sign in to the [AWS CloudFormation console](https://console.aws.amazon.com/cloudformation/home). 
 - Select the region where you deployed the Outbound Connection.
 - Choose **Create stack** -> **With new resources (standard)**.
-- From the **Create stack** page, select **Upload a template file** and then select **Choose file** and select the **template.yaml** file from the cloned repository and select **Next**
+- From the **Create stack** page, select **Upload a template file** and then select **Choose file** and select the **template.yaml** file you downloaded earlier and select **Next**
 
 Once the **Create stack** page is displayed the Amazon S3 URL will be populated with a link to the AWS CloudFormation template. Populate the following parameters:
 - *APIStageName* – This is the name used to reference a deployment of the private API. You can use a [Stage](https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-stages.html) to manage and optimize a particular deployment.  The stage name is the first path segment in the Uniform Resource Identifier (URI) of a call to the private API.  You can leave the default value of ‘Test’ or replace with something that is more relevant to your use case (stage names can only contain alphanumeric characters, hyphens, and underscores. Maximum length is 128 characters)
@@ -90,7 +90,7 @@ Once the **Create stack** page is displayed the Amazon S3 URL will be populated 
   - **I acknowledge that AWS CloudFormation might require the following capability: CAPABILITY_AUTO_EXPAND**
 - Choose **Submit**.
 
-Once the stack has been deployed (approximately 3-5 minutes depending if you are deploying with test resources) the stack will display a status of **CREATE_COMPLETE** in the CloudFormation console.  Once the stack has been deployed the *Outputs* tab will be populated with values that will be used when configuring the Salesforce Named Credential.
+Once the stack has been deployed (approximately 3-5 minutes depending if you are deploying with test resources) the stack will display a status of **CREATE_COMPLETE** in the CloudFormation console.  Once the stack has been deployed the **Outputs** tab will be populated with values that will be used when configuring the Salesforce Named Credential.
 
 ![CloudFormation Outputs Sccreenshot](img/50-CFNOutputs.png)
 
@@ -100,7 +100,7 @@ Once the stack has been deployed (approximately 3-5 minutes depending if you are
 
 When deploying the stack if you set the parameter **‘IncludeTestEnv’** to **‘true’** then additional resources have been deployed allowing you to test access to your private API Gateway via an Interface Endpoint from a Lambda Function deployed to a VPC in your AWS account.
 
-To run the test, navigate to the [Lambda console](https://console.aws.amazon.com/lambda/home#/functions), and open the Lambda function named {StackName}-VPCEndPointTestFunction-{random characters}). Click the Test button while on the Code tab, give the test a name and enter a payload such as the example below. Note the structure of the payload is important as validated by API Gateway.
+To run the test, navigate to the [Lambda console](https://console.aws.amazon.com/lambda/home#/functions), and open the Lambda function named **{StackName}-VPCEndPointTestFunction-{random characters}**. Click the Test button while on the Code tab, give the test a name and enter a payload such as the example below. Note the structure of the payload is important as validated by API Gateway.
 
 ```
 {
@@ -154,7 +154,7 @@ To create an External Service, you need to find External Services in your Salesf
 
 *Figure 9 - External Service from API Specification*
 
-Enter the name **SFAPI** as the name for your service, select the Named Credential you created earlier and copy-paste the content of the [API definition file](OpenAPIDef.json) that was downloaded when you cloned the repository.
+Enter the name **SFAPI** as the name for your service, select the Named Credential you created earlier and copy-paste the content of the **OpenAPIDef.json** that was downloaded when you cloned the repository or can be downloaded from GitHub via https://github.com/aws-samples/salesforce-apig-integration/blob/main/OpenAPIDef.json and using the `...` button.
 
 ![External Service Configuration Screenshot](img/100-ExternalServiceConfiguration.png)
 
@@ -166,7 +166,7 @@ The OpenAPI definition can be exported from the stage of the API Gateway. The op
 
 *Figure 11 - API Export from API Gateway*
 
-The **‘servers’** element should be removed from the exported file as the information contained is stored in the Named Credential within Salesforce.
+The ‘servers’ element should be removed from the exported file as the information contained is stored in the Named Credential within Salesforce.
 
 ### Make Callouts to the API with External Services in Flow
 To test the integration, you can use the invocable action generated by your External Service in a Flow. To create a Flow, find Flows in your Salesforce’s organization setup under Process Automation. Then press the **New Flow** button.
@@ -177,7 +177,7 @@ Choose the type of Flow you want to build and press **Create**. In this case, we
 
 *Figure 12 - New Flow Configuration Screen*
 
-Screen Flows provide the user with a screen for input. Click on the connection circle after the Screen Flow Start element to add a Screen element.
+Screen Flows provide the user with a screen for input. Click on the connection circle after the Screen Flow Start element to add a **Screen** element.
 
 ![Add Input Screen Element to Flow Screenshot](img/130-AddInputScreenElementToFlow.png)
 
@@ -240,3 +240,7 @@ To test the Flow, select **Debug** at the top. Enter a value for **x** and **y**
 *Figure 22 - Test the Flow*
 
 During this walkthrough you were able to rapidly setup Salesforce Private Connect, create an invocable action and build a Flow without writing any code.  The Flow was able to call the AWS API Gateway. With this solution, customers can build applications that require synchronous responses to business integration logic hosted in AWS. Customers benefit from higher performance since the traffic is routed over the AWS backbone rather than the public internet.
+
+## Clean up
+
+To avoid incurring future charges, delete the CloudFormation stack that has been provisioned. You should also remove all Salesforce resources created.
