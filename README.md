@@ -1,9 +1,9 @@
 # Private Integration between Salesforce and Amazon API Gateway
 
 This solution demonstrates how to implement a secure private integration between Salesforce and a private [Amazon API Gateway](https://aws.amazon.com/api-gateway/) using [AWS PrivateLink](https://aws.amazon.com/privatelink/) technology to support a synchronous user experience while meeting security and performance requirements. The integration can be leveraged in a Salesforce Flow.
-<!-- 
+
 ## AWS Blog post
-The AWS blog post providing further business context around the solution can be found at https://aws.amazon.com/blogs/ #TODO -->
+The AWS blog post providing further business context around the solution can be found at https://aws.amazon.com/blogs/apn/private-integration-salesforce-and-amazon-api-gateway/
 
 ## Architecture Overview
 The architecture below shows how the Salesforce features [Salesforce Private Connect](https://developer.salesforce.com/blogs/2020/05/introducing-salesforce-private-connect), [Named Credentials](https://help.salesforce.com/s/articleView?id=sf.nc_named_creds_and_ext_creds.htm), and [External Services](https://help.salesforce.com/s/articleView?id=sf.external_services.htm) are leveraged to simplify the setup of a secure, private, authenticated connection between your Salesforce and AWS environments.  Salesforce Private Connect provides a secure private connection with AWS using AWS PrivateLink. Named Credentials 
